@@ -1,15 +1,14 @@
-import { ComponentRef, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   Image,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   useColorScheme,
   View,
 } from 'react-native';
+import { OtpInput } from './components/OtpInput';
 import {
   applyBackspace,
   applyInput,
@@ -23,36 +22,19 @@ import {
 import {
   behindChrome,
   colors as palettes,
-  EMPTY_PLACEHOLDER,
   radii,
   sizes,
   spacing,
   type,
 } from './theme';
 
-// Web-only: kill UA focus ring so Bau border is the only focus chrome.
-const webDigitReset =
-  Platform.OS === 'web'
-    ? ({ outlineStyle: 'none', outlineWidth: 0 } as const)
-    : ({} as const);
-
 export default function App() {
-
   const isDark = useColorScheme() === 'dark';
   const colors = isDark ? palettes.dark : palettes.light;
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [focus, setFocus] = useState(0);
   const [status, setStatus] = useState<Status>('idle');
-  const resendSeconds =
-    Platform.OS === 'web' && typeof window !== 'undefined'
-      ? Number(new URLSearchParams(window.location.search).get('resend')) || RESEND_SECONDS
-      : RESEND_SECONDS;
-  const [secondsLeft, setSecondsLeft] = useState(resendSeconds);
-  const inputs = useRef<Array<ComponentRef<typeof TextInput> | null>>([]);
-
-  useEffect(() => {
-    inputs.current[focus]?.focus();
-  }, [focus, status]);
+  const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
 
   useEffect(() => {
     if (secondsLeft === 0) {
@@ -95,6 +77,15 @@ export default function App() {
     setFocus(result.focus);
   };
 
+  const statusColor =
+    status === 'success' ? colors.success : status === 'error' ? colors.error : colors.textSecondary;
+  const statusCopy =
+    status === 'success'
+      ? "You're in."
+      : status === 'error'
+        ? "That code didn't work. Try again."
+        : '';
+
   return (
     <View
       style={[
@@ -115,58 +106,15 @@ export default function App() {
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           A 6-digit code has been sent to your phone.
         </Text>
-        <View style={styles.digits}>
-          {digits.map((digit, index) => {
-            const focused = focus === index && !digit;
-            const filled = digit.length > 0;
-            return (
-              <TextInput
-                key={index}
-                ref={ref => {
-                  inputs.current[index] = ref;
-                }}
-                testID={`otp_digit_${index + 1}`}
-                accessibilityLabel={`Digit ${index + 1} of ${OTP_LENGTH}`}
-                value={digit}
-                // Focused empty: caret only — no placeholder behind the caret (Bau).
-                placeholder={focused ? '' : EMPTY_PLACEHOLDER}
-                placeholderTextColor={colors.digitPlaceholder}
-                keyboardType="number-pad"
-                autoFocus={index === 0}
-                textContentType="oneTimeCode"
-                caretHidden={false}
-                selectionColor={colors.digitFocusedOutline}
-                onFocus={() => setFocus(index)}
-                onChangeText={text => onChange(index, text)}
-                onKeyPress={({ nativeEvent }) => onKeyPress(index, nativeEvent.key)}
-                style={[
-                  styles.digit,
-                  webDigitReset,
-                  filled
-                    ? {
-                        backgroundColor: colors.digitFilledBg,
-                        borderWidth: sizes.digitOutlineEmpty,
-                        borderColor: colors.digitFilledBg,
-                        color: colors.digitFilledText,
-                      }
-                    : focused
-                      ? {
-                          backgroundColor: colors.digitFocusedBg,
-                          borderWidth: sizes.digitOutlineFocused,
-                          borderColor: colors.digitFocusedOutline,
-                          color: colors.digitFilledText,
-                        }
-                      : {
-                          backgroundColor: colors.digitEmptyBg,
-                          borderWidth: sizes.digitOutlineEmpty,
-                          borderColor: colors.digitEmptyOutline,
-                          color: colors.digitFilledText,
-                        },
-                ]}
-              />
-            );
-          })}
-        </View>
+        <OtpInput
+          digits={digits}
+          focusIndex={focus}
+          colors={colors}
+          refocusKey={status}
+          onChangeText={onChange}
+          onKeyPress={onKeyPress}
+          onFocusIndex={setFocus}
+        />
         <View style={styles.resendRow}>
           <Text style={[styles.resend, { color: colors.textSecondary }]}>
             Didn't receive the code?{' '}
@@ -176,7 +124,7 @@ export default function App() {
             disabled={secondsLeft > 0}
             accessibilityRole="button"
             accessibilityState={{ disabled: secondsLeft > 0 }}
-            onPress={() => setSecondsLeft(resendSeconds)}>
+            onPress={() => setSecondsLeft(RESEND_SECONDS)}>
             <Text
               style={[
                 styles.resendEmph,
@@ -191,19 +139,8 @@ export default function App() {
         <Text
           testID="otp_status"
           accessibilityLiveRegion="polite"
-          style={[
-            styles.status,
-            status === 'success'
-              ? { color: colors.success }
-              : status === 'error'
-                ? { color: colors.error }
-                : { color: colors.textSecondary },
-          ]}>
-          {status === 'success'
-            ? "You're in."
-            : status === 'error'
-              ? "That code didn't work. Try again."
-              : ''}
+          style={[styles.status, { color: statusColor }]}>
+          {statusCopy}
         </Text>
         <View style={styles.spacer} />
         <Pressable
@@ -256,20 +193,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: sizes.subtitleMaxW,
     ...type.subtitle,
-  },
-  digits: {
-    marginTop: spacing.subtitleToDigits,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.digitsGap,
-  },
-  digit: {
-    width: sizes.digit,
-    height: sizes.digit,
-    borderRadius: radii.digit,
-    textAlign: 'center',
-    padding: 0,
-    ...type.digit,
   },
   resendRow: {
     flexDirection: 'row',
