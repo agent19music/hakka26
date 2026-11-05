@@ -2,6 +2,7 @@ import { ComponentRef, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -29,13 +30,24 @@ import {
   type,
 } from './theme';
 
+// Web-only: kill UA focus ring so Bau border is the only focus chrome.
+const webDigitReset =
+  Platform.OS === 'web'
+    ? ({ outlineStyle: 'none', outlineWidth: 0 } as const)
+    : ({} as const);
+
 export default function App() {
+
   const isDark = useColorScheme() === 'dark';
   const colors = isDark ? palettes.dark : palettes.light;
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [focus, setFocus] = useState(0);
   const [status, setStatus] = useState<Status>('idle');
-  const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
+  const resendSeconds =
+    Platform.OS === 'web' && typeof window !== 'undefined'
+      ? Number(new URLSearchParams(window.location.search).get('resend')) || RESEND_SECONDS
+      : RESEND_SECONDS;
+  const [secondsLeft, setSecondsLeft] = useState(resendSeconds);
   const inputs = useRef<Array<ComponentRef<typeof TextInput> | null>>([]);
 
   useEffect(() => {
@@ -129,6 +141,7 @@ export default function App() {
                 onKeyPress={({ nativeEvent }) => onKeyPress(index, nativeEvent.key)}
                 style={[
                   styles.digit,
+                  webDigitReset,
                   filled
                     ? {
                         backgroundColor: colors.digitFilledBg,
@@ -163,7 +176,7 @@ export default function App() {
             disabled={secondsLeft > 0}
             accessibilityRole="button"
             accessibilityState={{ disabled: secondsLeft > 0 }}
-            onPress={() => setSecondsLeft(RESEND_SECONDS)}>
+            onPress={() => setSecondsLeft(resendSeconds)}>
             <Text
               style={[
                 styles.resendEmph,
